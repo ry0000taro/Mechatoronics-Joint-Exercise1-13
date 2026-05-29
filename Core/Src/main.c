@@ -21,7 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdbool.h>
+#include <stdint.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -46,16 +47,86 @@ UART_HandleTypeDef huart2;
 
 /* USER CODE END PV */
 
-/* Private function prototypes -----------------------------------------------*/
+/* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
+
 /* USER CODE BEGIN PFP */
+
+void LED_Output(bool led1, bool led2, bool led3, bool led4);
+uint8_t Switch_Input(void);
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+void LED_Output(bool led1, bool led2, bool led3, bool led4)
+{
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12,
+                      led1 ? GPIO_PIN_SET : GPIO_PIN_RESET);
+
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13,
+                      led2 ? GPIO_PIN_SET : GPIO_PIN_RESET);
+
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14,
+                      led3 ? GPIO_PIN_SET : GPIO_PIN_RESET);
+
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15,
+                      led4 ? GPIO_PIN_SET : GPIO_PIN_RESET);
+}
+
+/* 起動時の不要なチャタリング対策発動を防ぐため、初期値は0(離されている状態)に修正済み */
+static bool prev_raw_sw1 = false;
+static bool prev_raw_sw2 = false;
+static bool prev_raw_sw3 = false;
+static bool prev_raw_sw4 = false;
+
+static bool confirmed_sw1 = false;
+static bool confirmed_sw2 = false;
+static bool confirmed_sw3 = false;
+static bool confirmed_sw4 = false;
+
+uint8_t Switch_Input(void)
+{
+    /* --- 生のGPIO読み取り (Active Low なので反転して true=押した) --- */
+    bool raw1 = (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_10) == GPIO_PIN_RESET);
+    bool raw2 = (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_11) == GPIO_PIN_RESET);
+    bool raw3 = (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12) == GPIO_PIN_RESET);
+    bool raw4 = (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_RESET);
+
+    /* --- チャタリング対策 : どれか1つでも変化があった場合のみまとめて再確認 --- */
+    if (raw1 != prev_raw_sw1 || raw2 != prev_raw_sw2 || 
+        raw3 != prev_raw_sw3 || raw4 != prev_raw_sw4) {
+        
+        HAL_Delay(20);
+        
+        bool reread1 = (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_10) == GPIO_PIN_RESET);
+        bool reread2 = (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_11) == GPIO_PIN_RESET);
+        bool reread3 = (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12) == GPIO_PIN_RESET);
+        bool reread4 = (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_RESET);
+
+        if (reread1 == raw1) confirmed_sw1 = raw1;
+        if (reread2 == raw2) confirmed_sw2 = raw2;
+        if (reread3 == raw3) confirmed_sw3 = raw3;
+        if (reread4 == raw4) confirmed_sw4 = raw4;
+        
+        prev_raw_sw1 = raw1;
+        prev_raw_sw2 = raw2;
+        prev_raw_sw3 = raw3;
+        prev_raw_sw4 = raw4;
+    }
+
+    /* --- 4つの確定状態を、1つのuint8_t型変数（下位4ビット）にまとめる --- */
+    uint8_t state_pack = 0;
+    if (confirmed_sw1) state_pack |= (1 << 0); /* 1ビット目(右端)を1にする */
+    if (confirmed_sw2) state_pack |= (1 << 1); /* 2ビット目を1にする */
+    if (confirmed_sw3) state_pack |= (1 << 2); /* 3ビット目を1にする */
+    if (confirmed_sw4) state_pack |= (1 << 3); /* 4ビット目を1にする */
+
+    return state_pack;
+}
 
 /* USER CODE END 0 */
 
@@ -71,6 +142,7 @@ int main(void)
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
+
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
@@ -90,7 +162,7 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-
+      LED_Output(false, false, false, false);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -100,6 +172,17 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  /* 1つの数値としてスイッチの状態群を受け取る */
+	  uint8_t sw_state = Switch_Input();
+
+	  /* 受け取った数値を再び4つの状態に分解する */
+	  bool s1 = (sw_state >> 0) & 1;
+	  bool s2 = (sw_state >> 1) & 1;
+	  bool s3 = (sw_state >> 2) & 1;
+	  bool s4 = (sw_state >> 3) & 1;
+
+	  /* 分解した状態をLED出力に渡す */
+	  LED_Output(s1, s2, s3, s4);
   }
   /* USER CODE END 3 */
 }
