@@ -99,40 +99,25 @@ int Switch_Input(void)
     int raw3 = (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12) == GPIO_PIN_RESET) ? 1 : 0;
     int raw4 = (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_RESET) ? 1 : 0;
 
-    /* --- チャタリング対策 : 前回と変化があった場合のみ再確認 --- */
-    if (raw1 != prev_raw_sw1) {
+    /* --- チャタリング対策 : どれか1つでも変化があった場合のみまとめて再確認 --- */
+    if (raw1 != prev_raw_sw1 || raw2 != prev_raw_sw2 || 
+        raw3 != prev_raw_sw3 || raw4 != prev_raw_sw4) {
+        
         HAL_Delay(20);
+        
         int reread1 = (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_10) == GPIO_PIN_RESET) ? 1 : 0;
-        if (reread1 == raw1) {
-            confirmed_sw1 = raw1;
-        }
-        prev_raw_sw1 = raw1;
-    }
-
-    if (raw2 != prev_raw_sw2) {
-        HAL_Delay(20);
         int reread2 = (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_11) == GPIO_PIN_RESET) ? 1 : 0;
-        if (reread2 == raw2) {
-            confirmed_sw2 = raw2;
-        }
-        prev_raw_sw2 = raw2;
-    }
-
-    if (raw3 != prev_raw_sw3) {
-        HAL_Delay(20);
         int reread3 = (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12) == GPIO_PIN_RESET) ? 1 : 0;
-        if (reread3 == raw3) {
-            confirmed_sw3 = raw3;
-        }
-        prev_raw_sw3 = raw3;
-    }
-
-    if (raw4 != prev_raw_sw4) {
-        HAL_Delay(20);
         int reread4 = (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_RESET) ? 1 : 0;
-        if (reread4 == raw4) {
-            confirmed_sw4 = raw4;
-        }
+
+        if (reread1 == raw1) confirmed_sw1 = raw1;
+        if (reread2 == raw2) confirmed_sw2 = raw2;
+        if (reread3 == raw3) confirmed_sw3 = raw3;
+        if (reread4 == raw4) confirmed_sw4 = raw4;
+        
+        prev_raw_sw1 = raw1;
+        prev_raw_sw2 = raw2;
+        prev_raw_sw3 = raw3;
         prev_raw_sw4 = raw4;
     }
 
@@ -194,10 +179,10 @@ int main(void)
 	  int sw_state = Switch_Input();
 
 	  /* 受け取った数値を再び4つの状態(0か1)に分解する */
-	  int s1 = (sw_state & (1 << 0)) ? 1 : 0;
-	  int s2 = (sw_state & (1 << 1)) ? 1 : 0;
-	  int s3 = (sw_state & (1 << 2)) ? 1 : 0;
-	  int s4 = (sw_state & (1 << 3)) ? 1 : 0;
+	  int s1 = (sw_state >> 0) & 1;
+	  int s2 = (sw_state >> 1) & 1;
+	  int s3 = (sw_state >> 2) & 1;
+	  int s4 = (sw_state >> 3) & 1;
 
 	  /* 分解した状態をLED出力に渡す */
 	  LED_Output(s1, s2, s3, s4);
